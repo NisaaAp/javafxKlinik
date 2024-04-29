@@ -1,0 +1,542 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package klinik;
+
+/**
+ *
+ * @author Nisa Amelia Putri
+ */
+import javafx.application.Application;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
+
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+
+
+import java.sql.*;
+import java.net.URL;
+import java.text.SimpleDateFormat;
+import java.util.ResourceBundle;
+import javafx.fxml.FXML;
+import javafx.fxml.Initializable;
+import java.time.LocalDate;
+import java.util.Optional;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import static javafx.application.Application.launch;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Parent;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+
+public class PatientListView extends Application  {
+
+    private Connection connection;
+    private String url = "jdbc:mysql://localhost:3306/klinikjava";
+    private String username = "root";
+    private String password = "";
+
+      private VBox root; 
+      private TableView<Patient> table;
+      
+    public static void main(String[] args) {
+        launch(args);
+    }
+    
+    public Parent getRoot() {
+        return root;
+    }
+
+    @Override
+    public void start(Stage primaryStage) {
+        // Establish database connection
+        try {
+            connection = DriverManager.getConnection(url, username, password);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+//         table = new TableView<>();
+        // Buat tabel dan kolomnya
+        TableView<Patient> table = new TableView<>();
+        TableColumn<Patient, String> nikCol = new TableColumn<>("NIK");
+        nikCol.setCellValueFactory(data -> data.getValue().nikProperty());
+
+        TableColumn<Patient, String> nameCol = new TableColumn<>("Name");
+        nameCol.setCellValueFactory(data -> data.getValue().nameProperty());
+
+        TableColumn<Patient, String> genderCol = new TableColumn<>("Gender");
+        genderCol.setCellValueFactory(data -> data.getValue().genderProperty());
+
+        TableColumn<Patient, String> birthDateCol = new TableColumn<>("Birth Date");
+        birthDateCol.setCellValueFactory(data -> data.getValue().birthDateProperty());
+
+        TableColumn<Patient, String> phoneNumberCol = new TableColumn<>("Phone Number");
+        phoneNumberCol.setCellValueFactory(data -> data.getValue().phoneNumberProperty());
+
+        TableColumn<Patient, String> addressCol = new TableColumn<>("Address");
+        addressCol.setCellValueFactory(data -> data.getValue().addressProperty());
+
+        
+
+        // Tambahkan kolom ke tabel
+   // Tambahkan kolom ke tabel
+table.getColumns().addAll(nikCol, nameCol, genderCol, birthDateCol, phoneNumberCol, addressCol);
+
+// Ambil data pasien dari database dan tambahkan ke tabel
+ObservableList<Patient> data = getDataFromDatabase();
+table.setItems(data);
+
+
+
+// Buat VBox baru untuk form update
+VBox updateForm = new VBox();
+updateForm.setSpacing(10);
+updateForm.setPadding(new Insets(10));
+
+
+// Tambahkan komponen form update di sini
+        Label updateLabel = new Label("Update Form");
+        updateLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 18px;");
+        BorderPane.setAlignment(updateLabel, Pos.CENTER_LEFT); // Set alignment to left
+        HBox updateHeaderBox = new HBox(updateLabel); // HBox untuk label dan tombol keluar
+//        updateHeaderBox.setAlignment(Pos.CENTER_LEFT); // Menetapkan posisi ke kanan
+        updateHeaderBox.setSpacing(10);
+        Button exitButton = new Button("Exit");
+        exitButton.setOnAction(e -> primaryStage.close()); // Menutup aplikasi
+        BorderPane.setAlignment(exitButton, Pos.CENTER_RIGHT); // Set alignment to right
+        updateHeaderBox.getChildren().add(exitButton); // Menambahkan tombol keluar
+        updateForm.getChildren().add(updateHeaderBox); // Menambahkan HBox ke VBox
+        
+
+TextField nikUpdateField = new TextField();
+nikUpdateField.setPromptText("Enter NIK");
+TextField nameUpdateField = new TextField();
+nameUpdateField.setPromptText("Enter Name");
+RadioButton maleUpdateButton = new RadioButton("Male");
+RadioButton femaleUpdateButton = new RadioButton("Female");
+ToggleGroup genderGroup = new ToggleGroup();
+maleUpdateButton.setToggleGroup(genderGroup);
+femaleUpdateButton.setToggleGroup(genderGroup);
+DatePicker birthDateUpdatePicker = new DatePicker();
+birthDateUpdatePicker.setPromptText("Select Birth Date");
+TextField phoneNumberUpdateField = new TextField();
+phoneNumberUpdateField.setPromptText("Enter Phone Number");
+TextArea addressUpdateArea = new TextArea();
+addressUpdateArea.setPromptText("Enter Address");
+addressUpdateArea.setPrefColumnCount(20);
+addressUpdateArea.setPrefRowCount(4);
+
+
+Button updateButton = new Button("Update");
+updateButton.setStyle("-fx-background-color: #0073e6; -fx-text-fill: white;");
+updateButton.setOnAction(event -> {
+    // Ambil data yang dimasukkan pengguna dari form
+    String newNik = nikUpdateField.getText().trim();
+    String newName = nameUpdateField.getText().trim();
+    String newGender = maleUpdateButton.isSelected() ? "Male" : "Female";
+    String newBirthDate = birthDateUpdatePicker.getValue().toString();
+    String newPhoneNumber = phoneNumberUpdateField.getText().trim();
+    String newAddress = addressUpdateArea.getText().trim();
+
+    try {
+        // Cek apakah NIK baru sudah ada dalam database dan bukan milik pasien yang sedang diperbarui
+        if (isNIKAlreadyExists(newNik) && !newNik.equals(table.getSelectionModel().getSelectedItem().getNik())) {
+            Alert errorAlert = new Alert(Alert.AlertType.ERROR);
+            errorAlert.setTitle("Error");
+            errorAlert.setContentText("NIK already exists for another patient.");
+            errorAlert.showAndWait();
+            return; // Jangan lanjutkan proses update jika NIK sudah ada
+        }
+
+        // Cek apakah NIK yang diupdate sama dengan NIK milik pasien yang sedang diperbarui
+        if (!newNik.equals(table.getSelectionModel().getSelectedItem().getNik())) {
+            Alert errorAlert = new Alert(Alert.AlertType.ERROR);
+            errorAlert.setTitle("Error");
+            errorAlert.setContentText("You can only update your own NIK.");
+            errorAlert.showAndWait();
+            return; // Jangan lanjutkan proses update jika NIK yang diupdate bukan milik pasien yang sedang diperbarui
+        }
+
+        // Write SQL statement to update patient data
+        String sql = "UPDATE pasien SET NIK=?, nama=?, jenis_kelamin=?, tanggal_lahir=?, nomor_telepon=?, alamat=? WHERE NIK=?";
+
+        // Prepare the SQL statement
+        PreparedStatement statement = connection.prepareStatement(sql);
+        statement.setString(1, newNik);
+        statement.setString(2, newName);
+        statement.setString(3, newGender);
+        statement.setString(4, newBirthDate);
+        statement.setString(5, newPhoneNumber);
+        statement.setString(6, newAddress);
+        statement.setString(7, newNik);
+
+        // Execute the SQL statement to update patient data
+        int rowsUpdated = statement.executeUpdate();
+
+        // Show success or failure message based on the result of execution
+        if (rowsUpdated > 0) {
+            Alert successAlert = new Alert(Alert.AlertType.INFORMATION);
+            successAlert.setTitle("Success");
+            successAlert.setContentText("Patient data updated successfully.");
+            successAlert.showAndWait();
+
+            updateTable();
+        } else {
+            Alert errorAlert = new Alert(Alert.AlertType.ERROR);
+            errorAlert.setTitle("Error");
+            errorAlert.setContentText("Failed to update patient data.");
+            errorAlert.showAndWait();
+        }
+
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+});
+
+
+Button delButton = new Button("Delete");
+delButton.setStyle("-fx-background-color: #ff0000; -fx-text-fill: white;");
+delButton.setOnAction(event -> {
+    // Buat alert konfirmasi
+    Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+    confirmation.setTitle("Confirmation");
+    confirmation.setHeaderText("Delete Patient");
+    confirmation.setContentText("Are you sure you want to delete this patient?");
+    
+    // Menambahkan tombol OK dan Cancel ke alert konfirmasi
+    confirmation.getButtonTypes().setAll(ButtonType.OK, ButtonType.CANCEL);
+    
+    // Tampilkan alert konfirmasi dan tanggapi respons pengguna
+    Optional<ButtonType> result = confirmation.showAndWait();
+    
+    // Jika tombol OK ditekan, hapus data pasien
+    if (result.isPresent() && result.get() == ButtonType.OK) {
+    try {
+        // Ambil NIK dari baris yang dipilih dalam tabel
+        Patient selectedPatient = table.getSelectionModel().getSelectedItem();
+        String nik = selectedPatient.getNik(); // Ambil NIK dari objek Patient
+
+        // SQL statement untuk menghapus data pasien
+        String sql = "DELETE FROM pasien WHERE NIK = ?";
+
+        // Persiapkan pernyataan SQL
+        PreparedStatement statement = connection.prepareStatement(sql);
+        statement.setString(1, nik);
+
+        // Eksekusi pernyataan SQL
+        statement.executeUpdate();
+
+        // Tampilkan pesan sukses
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Success");
+        alert.setContentText("Patient data deleted successfully.");
+        alert.showAndWait();
+
+        updateTable();
+
+
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+    }
+});
+
+Button cancelButton = new Button("Cancel");
+cancelButton.setStyle("-fx-background-color: #ffcccc; -fx-text-fill: black;");
+cancelButton.setOnAction(event -> {
+    // Mendapatkan item pasien yang dipilih
+    Patient selectedPatient = table.getSelectionModel().getSelectedItem();
+    
+    // Memeriksa apakah baris telah dipilih
+    if (selectedPatient != null) {
+        // Menampilkan data pasien terkait di formulir update
+        nikUpdateField.setText(selectedPatient.getNik());
+        nameUpdateField.setText(selectedPatient.getName());
+        // Memeriksa dan mengatur radio button sesuai jenis kelamin pasien
+        if (selectedPatient.getGender().equals("Male")) {
+            maleUpdateButton.setSelected(true);
+        } else {
+            femaleUpdateButton.setSelected(true);
+        }
+        // Mengatur tanggal lahir pasien
+        birthDateUpdatePicker.setValue(LocalDate.parse(selectedPatient.getBirthDate()));
+        phoneNumberUpdateField.setText(selectedPatient.getPhoneNumber());
+        addressUpdateArea.setText(selectedPatient.getAddress());
+    }
+});
+
+GridPane updateGrid = new GridPane();
+updateGrid.setAlignment(Pos.CENTER);
+updateGrid.setHgap(10);
+updateGrid.setVgap(10);
+updateGrid.setPadding(new Insets(10));
+
+updateGrid.add(new Label("NIK:"), 0, 0);
+updateGrid.add(nikUpdateField, 1, 0);
+
+updateGrid.add(new Label("Name:"), 0, 1);
+updateGrid.add(nameUpdateField, 1, 1);
+
+HBox genderUpdateBox = new HBox(10, new Label("Gender:"), maleUpdateButton, femaleUpdateButton);
+updateGrid.add(genderUpdateBox, 0, 2, 2, 1);
+
+updateGrid.add(new Label("Birth Date:"), 0, 3);
+updateGrid.add(birthDateUpdatePicker, 1, 3);
+
+updateGrid.add(new Label("Phone Number:"), 0, 4);
+updateGrid.add(phoneNumberUpdateField, 1, 4);
+
+updateGrid.add(new Label("Address:"), 0, 5);
+updateGrid.add(addressUpdateArea, 1, 5);
+
+HBox buttonBox = new HBox(10, updateButton, delButton, cancelButton);
+buttonBox.setAlignment(Pos.CENTER);
+updateForm.getChildren().addAll(updateGrid, buttonBox);
+
+// Menambahkan event listener untuk menangani klik pada baris tabel
+table.setOnMouseClicked(event -> {
+    // Mendapatkan item pasien yang dipilih
+    Patient selectedPatient = table.getSelectionModel().getSelectedItem();
+    
+    // Memeriksa apakah baris telah dipilih
+    if (selectedPatient != null) {
+        // Menampilkan data pasien terkait di formulir update
+        nikUpdateField.setText(selectedPatient.getNik());
+        nameUpdateField.setText(selectedPatient.getName());
+        // Memeriksa dan mengatur radio button sesuai jenis kelamin pasien
+        if (selectedPatient.getGender().equals("Male")) {
+            maleUpdateButton.setSelected(true);
+        } else {
+            femaleUpdateButton.setSelected(true);
+        }
+        // Mengatur tanggal lahir pasien
+        birthDateUpdatePicker.setValue(LocalDate.parse(selectedPatient.getBirthDate()));
+        phoneNumberUpdateField.setText(selectedPatient.getPhoneNumber());
+        addressUpdateArea.setText(selectedPatient.getAddress());
+    }
+});
+
+
+        // Tampilkan tabel dalam layout VBox
+        VBox root = new VBox();
+        root.setSpacing(10); 
+        // Tambahkan judul "Data Pasien"
+        Label titleLabel = new Label("Data Pasien");
+        titleLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 35px;");
+        titleLabel.setAlignment(Pos.CENTER);
+        
+        Button addButton = new Button("Tambah data pasien");
+        addButton.setOnAction(e -> {
+            // Membuat objek formKlinik
+            formKlinik form = new formKlinik();
+            // Memanggil metode start untuk menampilkan form
+            form.start(new Stage());
+        });
+        table.setPrefWidth(600); // Set the preferred height to 500 pixels
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        
+        root.getChildren().addAll(titleLabel, table, addButton);
+        
+    BorderPane topPaneForm = new BorderPane();
+//    topPaneForm.setLeft(titleLabel);
+    topPaneForm.setRight(exitButton);
+    
+    VBox upForm = new VBox();
+    upForm.getChildren().addAll(topPaneForm, updateForm);
+
+// Susun layout menggunakan BorderPane
+BorderPane layout = new BorderPane();
+layout.setLeft(root);
+layout.setRight(upForm);
+
+
+
+Scene scene = new Scene(layout, 1000, 600);
+primaryStage.setScene(scene);
+primaryStage.setTitle("Patient List");
+primaryStage.show();
+
+
+    }
+    
+
+public ObservableList<Patient> getDataFromDatabase() {
+    ObservableList<Patient> data = FXCollections.observableArrayList();
+    try {
+        Statement statement = connection.createStatement();
+        ResultSet resultSet = statement.executeQuery("SELECT * FROM pasien");
+        while (resultSet.next()) {
+            String nik = resultSet.getString("NIK");
+            String name = resultSet.getString("nama");
+            String gender = resultSet.getString("jenis_kelamin");
+            String birthDate = resultSet.getString("tanggal_lahir");
+            String phoneNumber = resultSet.getString("nomor_telepon");
+            String address = resultSet.getString("alamat");
+            data.add(new Patient(nik, name, gender, birthDate, phoneNumber, address));
+        }
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+    return data;
+}
+
+
+    
+public void updateTable() {
+    
+        PatientListView patientListView = new PatientListView();
+            patientListView.start(new Stage());
+
+}
+
+    
+    
+
+ 
+    
+    
+    // Kelas untuk merepresentasikan data pasien
+    public class Patient {
+        private final SimpleStringProperty nik;
+        private final SimpleStringProperty name;
+        private final SimpleStringProperty gender;
+        private final SimpleStringProperty birthDate;
+        private final SimpleStringProperty phoneNumber;
+        private final SimpleStringProperty address;
+
+        public Patient(String nik, String name, String gender, String birthDate, String phoneNumber, String address) {
+            this.nik = new SimpleStringProperty(nik);
+            this.name = new SimpleStringProperty(name);
+            this.gender = new SimpleStringProperty(gender);
+            this.birthDate = new SimpleStringProperty(birthDate);
+            this.phoneNumber = new SimpleStringProperty(phoneNumber);
+            this.address = new SimpleStringProperty(address);
+        }
+
+        public SimpleStringProperty nikProperty() {
+            return nik;
+        }
+
+        public SimpleStringProperty nameProperty() {
+            return name;
+        }
+
+        public SimpleStringProperty genderProperty() {
+            return gender;
+        }
+
+        public SimpleStringProperty birthDateProperty() {
+            return birthDate;
+        }
+
+        public SimpleStringProperty phoneNumberProperty() {
+            return phoneNumber;
+        }
+
+        public SimpleStringProperty addressProperty() {
+            return address;
+        }
+
+        // Tambahkan metode getNik()
+        public String getNik() {
+            return nik.get();
+        }
+
+        // Tambahkan metode getName()
+        public String getName() {
+            return name.get();
+        }
+
+        // Tambahkan metode getGender()
+        public String getGender() {
+            return gender.get();
+        }
+        
+       
+        // Tambahkan metode getPhoneNumber()
+        public String getPhoneNumber() {
+            return phoneNumber.get();
+        }
+
+        // Tambahkan metode getAddress()
+        public String getAddress() {
+            return address.get();
+        }
+
+        private CharSequence getBirthDate() {
+            return birthDate.get();
+        }
+        
+         
+         
+       public String getFormattedBirthDate() {
+    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MMM-dd");
+    LocalDate date = LocalDate.parse(birthDate.get());
+    return formatter.format(date);
+}
+
+    }
+    
+
+
+private boolean isNIKAlreadyExists(String NIK) throws SQLException {
+    // Write SQL statement to check if NIK already exists in the database
+    String sql = "SELECT COUNT(*) AS count FROM pasien WHERE NIK = ?";
+
+    // Prepare the SQL statement
+    PreparedStatement statement = connection.prepareStatement(sql);
+    statement.setString(1, NIK);
+
+    // Execute the SQL statement
+    ResultSet resultSet = statement.executeQuery();
+
+    // Get the count of rows returned by the query
+    if (resultSet.next()) {
+        int count = resultSet.getInt("count");
+        return count > 0; // Return true if count > 0, meaning NIK already exists
+    }
+
+    return false;
+}
+
+private void deletePatient(String nik) {
+    try {
+        // SQL statement untuk menghapus data pasien
+        String sql = "DELETE FROM pasien WHERE NIK = ?";
+        
+        // Persiapkan pernyataan SQL
+        PreparedStatement statement = connection.prepareStatement(sql);
+        statement.setString(1, nik);
+        
+        // Eksekusi pernyataan SQL
+        statement.executeUpdate();
+        
+        // Tampilkan pesan sukses
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Success");
+        alert.setContentText("Patient data deleted successfully.");
+        alert.showAndWait();
+        
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+    
+}
+
+
+
+}
