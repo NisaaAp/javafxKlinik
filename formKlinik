@@ -1,0 +1,328 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package klinik;
+
+/**
+ *
+ * @author Nisa Amelia Putri
+ */
+
+import java.awt.BorderLayout;
+import javafx.application.Application;
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.stage.Stage;
+
+
+import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import static javafx.application.Application.launch;
+import javafx.geometry.Pos;
+import javafx.scene.layout.VBox;
+import javagui.ListView;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.SwingConstants;
+
+public class formKlinik extends Application {
+
+    private Connection connection;
+    private String url = "jdbc:mysql://localhost:3306/klinikjava";
+    private String username = "root";
+    private String password = "";
+
+    // Declare variables here
+    private TextField NIKField;
+    private TextField nameField;
+    private RadioButton maleButton;
+    private RadioButton femaleButton;
+    private DatePicker birthDatePicker;
+    private TextField phoneNumberField;
+    private TextArea addressArea;
+    private Button cancelButton;
+
+    @Override
+    public void start(Stage primaryStage) {
+        // Establish database connection
+        try {
+            connection = DriverManager.getConnection(url, username, password);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+               
+        // Create the form grid
+        GridPane grid = new GridPane();
+        grid.setAlignment(Pos.CENTER);
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(10, 10, 10, 10));
+
+       
+        
+        
+        // Add input fields
+        NIKField = new TextField();
+        grid.add(new Label("NIK:"), 0, 1); // Now add label to row 2
+        grid.add(NIKField, 1, 1);
+
+        nameField = new TextField();
+        grid.add(new Label("Name:"), 0, 2);
+        grid.add(nameField, 1, 2);
+
+        // Add radio buttons for gender
+        ToggleGroup genderGroup = new ToggleGroup();
+        maleButton = new RadioButton("Male");
+        maleButton.setToggleGroup(genderGroup);
+        femaleButton = new RadioButton("Female");
+        femaleButton.setToggleGroup(genderGroup);
+        HBox genderBox = new HBox(10, new Label("Gender:"), maleButton, femaleButton);
+        grid.add(genderBox, 0, 3, 2, 1);
+
+         birthDatePicker = new DatePicker();
+         grid.add(new Label("Birth Date:"), 0, 4);
+         grid.add(birthDatePicker, 1, 4);
+
+         phoneNumberField = new TextField();
+         grid.add(new Label("Phone Number:"), 0, 5);
+         grid.add(phoneNumberField, 1, 5);
+
+         addressArea = new TextArea();
+         addressArea.setPrefColumnCount(20);
+         addressArea.setPrefRowCount(4);
+         grid.add(new Label("Address:"), 0, 6);
+         grid.add(addressArea, 1, 6);
+
+        // Add buttons
+        Button submitButton = new Button("Submit");
+        submitButton.setStyle("-fx-background-color: #0073e6; -fx-text-fill: white;");
+        Button cancelButton = new Button("Cancel");
+        cancelButton.setStyle("-fx-background-color: #ff0000; -fx-text-fill: white;");
+        cancelButton.setOnAction(e -> {
+            // Panggil metode untuk membersihkan form
+            clearForm();
+            // Tutup jendela form
+            primaryStage.close();
+        });
+        
+        
+        Button patientListButton = new Button("Patient List");
+
+        HBox buttonBox = new HBox(10, submitButton, cancelButton, patientListButton);
+        buttonBox.setAlignment(Pos.CENTER);
+        buttonBox.setPadding(new Insets(5, 0, 0, 0));
+
+        // Event handlers
+        submitButton.setOnAction(e -> submitForm());
+        cancelButton.setOnAction(e -> clearForm());
+        patientListButton.setOnAction(e -> {
+            primaryStage.close();
+    // Panggil metode untuk menampilkan halaman tabel data pasien
+    displayPatientList();
+});
+        
+        // Add form title
+        Label titleLabel = new Label("Patient Form");
+        titleLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 18px;");
+        BorderPane.setAlignment(titleLabel, Pos.CENTER);
+        
+        // Add exit button
+        Button exitButton = new Button("Exit");
+        exitButton.setOnAction(e -> primaryStage.close()); // Close the application window
+
+        BorderPane topPane = new BorderPane();
+        topPane.setCenter(titleLabel);
+        topPane.setPadding(new Insets(10));
+        topPane.setRight(exitButton);
+
+        BorderPane mainPane = new BorderPane();
+        mainPane.setTop(topPane);
+        mainPane.setCenter(grid);
+        mainPane.setBottom(buttonBox);
+        
+        // Add Patient List button
+        VBox bottomPane = new VBox(10, mainPane, patientListButton);
+        bottomPane.setAlignment(Pos.CENTER);
+        
+//        // Add patient list button
+//        HBox patientListButtonBox = new HBox(patientListButton);
+//        patientListButtonBox.setAlignment(Pos.CENTER);
+//        patientListButtonBox.setPadding(new Insets(5, 0, 0, 0));
+//        mainPane.setBottom(patientListButtonBox);
+        
+          // Create the scene and show it
+        Scene scene = new Scene(bottomPane, 500, 500);
+        primaryStage.setScene(scene);
+        primaryStage.setTitle("Patient Form");
+        primaryStage.show();
+        
+//        VBox mainLayout = new VBox(10, grid, buttonBox, patientListButton);
+//        mainLayout.setPadding(new Insets(10));
+//        mainLayout.setAlignment(Pos.CENTER);
+//        mainLayout.setPrefWidth(500); // Mengatur panjangnya ke 300 pixel
+//        VBox.setMargin(grid, new Insets(20, 0, 20, 0)); // Set margin for the form
+//
+//        
+//        // Create the scene and show it
+//        Scene scene = new Scene(mainLayout, 400, 400);
+//        primaryStage.setScene(scene);
+//        primaryStage.setTitle("Patient Form");
+//        primaryStage.show();
+    }
+
+    private void submitForm() {
+        try {
+            // Extract data from the form
+            long NIK = Long.parseLong(NIKField.getText());
+            String name = nameField.getText();
+            String gender = maleButton.isSelected() ? "Male" : "Female";
+            String birthDate = birthDatePicker.getValue().toString();
+            String phoneNumber = phoneNumberField.getText();
+            String address = addressArea.getText();
+
+            // Check if the NIK already exists in the database
+        if (isNIKAlreadyExists(NIK)) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Error");
+            alert.setContentText("NIK already exists. Please enter a unique NIK.");
+            alert.showAndWait();
+            return; // Stop the method if NIK already exists
+        }
+            // Write SQL statement to insert data
+            String sql = "INSERT INTO pasien (NIK, nama, jenis_kelamin, tanggal_lahir, nomor_telepon, alamat) " +
+                    "VALUES (?, ?, ?, ?, ?, ?)";
+
+            // Prepare the SQL statement
+            PreparedStatement statement = connection.prepareStatement(sql);
+            statement.setLong(1, NIK);
+            statement.setString(2, name);
+            statement.setString(3, gender);
+            statement.setString(4, birthDate);
+            statement.setString(5, phoneNumber);
+            statement.setString(6, address);
+
+            // Execute the SQL statement to insert data
+            statement.executeUpdate();
+
+            // Show success message
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Success");
+            alert.setContentText("Data successfully inserted.");
+            alert.showAndWait();
+            displayPatientList();
+        } catch (SQLException ex) {
+            ex.printStackTrace(); // Handle any errors that may occur
+        }
+    }
+
+    private void clearForm() {
+        NIKField.clear();
+        nameField.clear();
+        maleButton.setSelected(false);
+        femaleButton.setSelected(false);
+        birthDatePicker.setValue(null);
+        phoneNumberField.clear();
+        addressArea.clear();
+//         primaryStage.close();
+                        returnToPatientListView();
+
+    }
+    
+    private boolean isNIKAlreadyExists(long NIK) throws SQLException {
+    // Write SQL statement to check if NIK already exists in the database
+    String sql = "SELECT COUNT(*) AS count FROM pasien WHERE NIK = ?";
+
+    // Prepare the SQL statement
+    PreparedStatement statement = connection.prepareStatement(sql);
+    statement.setLong(1, NIK);
+
+    // Execute the SQL statement
+    ResultSet resultSet = statement.executeQuery();
+
+    // Get the count of rows returned by the query
+    if (resultSet.next()) {
+        int count = resultSet.getInt("count");
+        return count > 0; // Return true if count > 0, meaning NIK already exists
+    }
+
+    return false;
+}
+    
+// Method to display patient list
+private void displayPatientList() {
+    // Buat VBox baru untuk menampung PatientListView
+    VBox root = new VBox();
+    
+    // Buat objek PatientListView
+    PatientListView patientListView = new PatientListView();
+    
+    // Buat objek Stage baru
+    Stage stage = new Stage();
+    
+    // Panggil metode start() dari PatientListView dengan menggunakan objek Stage yang sudah dibuat
+    patientListView.start(new Stage());
+    
+    // Dapatkan root dari Scene yang dibuat oleh PatientListView
+    root.getChildren().add(patientListView.getRoot());
+    
+    // Buat Scene baru dengan VBox sebagai root
+    Scene scene = new Scene(root, 800, 600);
+    
+    // Set Scene pada Stage
+    stage.setScene(scene);
+    
+    // Tampilkan Stage
+    stage.show();
+}
+
+
+// Method untuk memperbarui tampilan ke PatientListView
+private void returnToPatientListView() {
+    
+    VBox root = new VBox();
+
+// Buat objek PatientListView
+    PatientListView patientListView = new PatientListView();
+    
+    // Buat objek Stage baru
+    Stage stage = new Stage();
+    
+    // Panggil metode start() dari PatientListView dengan menggunakan objek Stage yang sudah dibuat
+    patientListView.start(new Stage());
+    
+    // Dapatkan root dari Scene yang dibuat oleh PatientListView
+     
+    root.getChildren().add(patientListView.getRoot());
+
+    
+    // Buat Scene baru dengan VBox sebagai root
+    Scene scene = new Scene(root, 800, 600);
+    
+    // Set Scene pada Stage
+    stage.setScene(scene);
+    
+    // Tampilkan Stage
+    stage.show();
+    
+    // Tutup stage formKlinik saat ini
+    ((Stage) NIKField.getScene().getWindow()).close();
+}
+
+
+    public static void main(String[] args) {
+        launch(args);
+    }
+}
